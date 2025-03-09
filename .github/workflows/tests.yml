@@ -1,0 +1,68 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  unit-tests:
+    name: Execute Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Project Dependencies
+        run: npm ci
+
+      - name: Execute Unit Tests
+        run: npm test
+
+  e2e-tests:
+    name: Execute End-to-End Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Project Dependencies
+        run: npm ci
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps
+
+      - name: Build Application
+        run: npm run build
+
+      - name: Start Application Server
+        run: npm run start &
+        env:
+          NODE_ENV: test
+
+      - name: Ensure Application is Ready
+        run: |
+          for i in {1..30}; do
+            curl -sSf http://localhost:3000 && break
+            echo "Waiting for the server to start..."
+            sleep 2
+          done
+
+      - name: Execute Playwright E2E Tests
+        run: npm run test:e2e
