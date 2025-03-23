@@ -1,39 +1,144 @@
-name: Vercel Deployment Workflow
+name: CI and Deploy to Vercel
 
 on:
   push:
     branches:
       - main
+      - '**'
   pull_request:
     branches:
       - '**'
 
 jobs:
-  deploy-to-vercel:
-    name: Deploy Application to Vercel
+  unit-tests:
+    name: Execute Unit Tests
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Source Code
+      - name: Fetch Repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js Environment
+      - name: Configure Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
 
-      - name: Install Project Dependencies
-        run: npm ci
+      - name: Install Dependencies
+        run: npm install
 
-      - name: Generate Prisma Client
-        run: npx prisma generate
+      - name: Run Unit Tests
+        run: npm run test
 
-      - name: Build the Application
+  e2e-tests:
+    name: Execute End-to-End Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - name: Fetch Repository
+        uses: actions/checkout@v4
+
+      - name: Configure Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps
+
+      - name: Set Up Database
+        run: |
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > .env
+          cat .env
+          export $(cat .env | xargs)
+          npx prisma migrate deploy
+
+      - name: Reset Database Before Tests
+        run: |
+          echo "Resetting Database..."
+          npx prisma migrate reset --force
+
+      - name: Compile Next.js App
         run: npm run build
 
-      - name: Trigger Vercel Production Deployment 
-        run: npx vercel --prod --token ${{ secrets.VERCEL_TOKEN }}
+      - name: Start Next.js Server
+        run: |
+          nohup npm run start -- -p 3000 > nextjs.log 2>&1 &
+          sleep 5
+        env:
+          NODE_ENV: production
+          PORT: 3000
+
+      - name: Print Next.js Logs if Server Fails
+        if: failure()
+        run: cat nextjs.log
+
+      - name: Wait for Next.js Server to Start
+        run: |
+          echo "Waiting for Next.js to start..."
+          for i in {1..60}; do
+            STATUS_CODE=$(curl -o /dev/null -s -w "%{http_code}" http://localhost:3000 || echo "000")
+            if [[ "$STATUS_CODE" == "200" ]]; then
+              echo "Next.js is up!"
+              break
+            fi
+            echo "Still waiting... ($i)"
+            sleep 2
+          done
+        timeout-minutes: 3
+
+      - name: Run Playwright Tests
+        run: E2E_TEST=true npm run test:e2e
+
+      - name: Upload Playwright Test Results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: test-results/
+
+  preview-deploy:
+    name: Deploy Preview to Vercel
+    runs-on: ubuntu-latest
+    needs: [unit-tests, e2e-tests]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm install
+
+      - run: npm run build
+
+      - run: npx vercel --token ${{ secrets.VERCEL_TOKEN }} --confirm --scope ${{ secrets.VERCEL_ORG_ID }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+  production-deploy:
+    name: Deploy Production to Vercel
+    runs-on: ubuntu-latest
+    needs: [unit-tests, e2e-tests]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm install
+
+      - run: npm run build
+
+      - run: npx vercel --prod --token ${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
