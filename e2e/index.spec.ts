@@ -75,7 +75,7 @@ test("should enable removing a TODO item", async ({ page, browserName }, testInf
 
   // Verify both tasks are added
   await expect(page.locator("span[data-testid='todo-text']").filter({ hasText: taskOne })).toHaveCount(1);
-  await expect(page.locator("span[data-testid='todo-text']").filter({ hasText: taskTwo })).toHaveCount(1);
+  await expect(page.locator("span[data-testid='todo-text']").filter({ hasText: taskTwo })).toHaveCount(1); 
 
   // Select the correct todo item
   const todoItem = await page.locator("ul > li").filter({
