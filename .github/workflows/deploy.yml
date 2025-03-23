@@ -1,4 +1,4 @@
-name: CI and Deploy to Vercel
+name: CI and Deployment Workflow
 
 on:
   push:
@@ -26,6 +26,9 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
       - name: Run Unit Tests
         run: npm run test
 
@@ -46,6 +49,9 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps
 
@@ -54,7 +60,7 @@ jobs:
           echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > .env
           cat .env
           export $(cat .env | xargs)
-          npx prisma migrate deploy
+          npx prisma db push
 
       - name: Reset Database Before Tests
         run: |
@@ -100,45 +106,32 @@ jobs:
           name: playwright-results
           path: test-results/
 
-  preview-deploy:
-    name: Deploy Preview to Vercel
+  deploy-to-vercel:
+    name: Deploy Application to Vercel
     runs-on: ubuntu-latest
     needs: [unit-tests, e2e-tests]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js Environment
+        uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
           cache: npm
 
-      - run: npm install
+      - name: Install Project Dependencies
+        run: npm ci
 
-      - run: npm run build
+      - name: Generate Prisma Client
+        run: npx prisma generate
 
-      - run: npx vercel --token ${{ secrets.VERCEL_TOKEN }} --confirm --scope ${{ secrets.VERCEL_ORG_ID }}
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      - name: Build the Application
+        run: npm run build
 
-  production-deploy:
-    name: Deploy Production to Vercel
-    runs-on: ubuntu-latest
-    needs: [unit-tests, e2e-tests]
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - run: npm install
-
-      - run: npm run build
-
-      - run: npx vercel --prod --token ${{ secrets.VERCEL_TOKEN }}
+      - name: Trigger Vercel Production Deployment 
+        run: npx vercel --prod --token ${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
