@@ -32,7 +32,7 @@ jobs:
       - name: Build the Application
         run: npm run build
 
-      - name: Trigger Vercel Production Deployment
+      - name: Trigger Vercel Production Deployment 
         run: npx vercel --prod --token ${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
