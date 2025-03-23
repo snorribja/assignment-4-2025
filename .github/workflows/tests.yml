@@ -59,7 +59,7 @@ jobs:
           echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > .env
           cat .env
           export $(cat .env | xargs)
-          npx prisma migrate deploy
+          npx prisma db push
 
       - name: Reset Database Before Tests
         run: |
