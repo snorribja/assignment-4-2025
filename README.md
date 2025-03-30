@@ -1,3 +1,10 @@
+# Assignment 6
+
+
+Screenshot of datadog dashboard
+![Dashboard](./dashboard.png)
+
+
 # Assignment 5
 
 Vercel URL's:
