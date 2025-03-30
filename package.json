@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "@prisma/client": "^6.5.0",
+    "dd-trace": "^5.45.0",
+    "hot-shots": "^10.2.1",
     "next": "^15.1.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
